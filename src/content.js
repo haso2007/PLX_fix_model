@@ -43,6 +43,7 @@ let lastAttemptAt = 0;
 let lastUrl = location.href;
 let thinkingAttemptedKey = "";
 let failedApplyKey = "";
+let attemptedApplyKey = "";
 
 async function setStatus(status) {
   settings.lastStatus = status;
@@ -333,7 +334,7 @@ async function selectPreferredModel() {
   }
 
   const applyKey = modelApplyKey();
-  if (failedApplyKey === applyKey) {
+  if (failedApplyKey === applyKey || attemptedApplyKey === applyKey) {
     return;
   }
 
@@ -345,6 +346,7 @@ async function selectPreferredModel() {
   selecting = true;
 
   try {
+    attemptedApplyKey = applyKey;
     const aliases = modelAliases();
     const trigger = findModelTrigger();
     if (!trigger) {
@@ -356,6 +358,7 @@ async function selectPreferredModel() {
     if (elementContainsAny(trigger, aliases)) {
       log("Trigger already shows preferred model.");
       failedApplyKey = "";
+      attemptedApplyKey = "";
       const thinkingEnabled = await ensureThinkingEnabled(trigger, false);
       await setStatus(`\u5df2\u662f\u5f53\u524d\u6a21\u578b\uff1a${settings.preferredModel}${thinkingEnabled ? "\uff0c\u5df2\u5c1d\u8bd5\u5f00\u542f\u601d\u8003" : ""}`);
       return;
@@ -408,6 +411,7 @@ function watchPage() {
       lastUrl = location.href;
       thinkingAttemptedKey = "";
       failedApplyKey = "";
+      attemptedApplyKey = "";
       scheduleSelection(500);
       return;
     }
@@ -442,7 +446,20 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     settings[key] = change.newValue;
   }
 
+  const shouldRetry = [
+    "preferredModel",
+    "aliases",
+    "currentModelLabels",
+    "enableThinking",
+    "debug"
+  ].some((key) => Object.prototype.hasOwnProperty.call(changes, key));
+
+  if (!shouldRetry) {
+    return;
+  }
+
   thinkingAttemptedKey = "";
   failedApplyKey = "";
+  attemptedApplyKey = "";
   scheduleSelection(200);
 });
