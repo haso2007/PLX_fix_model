@@ -48,7 +48,6 @@ let thinkingAttemptedKey = "";
 let failedApplyKey = "";
 let attemptedApplyKey = "";
 let pendingSearchSubmitted = false;
-let pendingSearchInProgress = false;
 let submittedSearchPath = "";
 
 function captureDirectSearch() {
@@ -438,7 +437,7 @@ async function waitForExplicitSubmitButton() {
 }
 
 async function submitPendingSearchIfNeeded() {
-  if (pendingSearchSubmitted || pendingSearchInProgress) {
+  if (pendingSearchSubmitted) {
     return;
   }
 
@@ -447,19 +446,11 @@ async function submitPendingSearchIfNeeded() {
     return;
   }
 
-  pendingSearchInProgress = true;
-  await new Promise((resolve) => setTimeout(resolve, 700));
-
   const input = findPromptInput();
   if (!input) {
     log("Pending search input not found.");
-    pendingSearchInProgress = false;
     return;
   }
-
-  pendingSearchSubmitted = true;
-  submittedSearchPath = location.pathname;
-  sessionStorage.removeItem(PENDING_SEARCH_KEY);
 
   pastePromptValue(input, pending.query);
   await new Promise((resolve) => setTimeout(resolve, 250));
@@ -477,7 +468,9 @@ async function submitPendingSearchIfNeeded() {
     pressEnter(input);
   }
 
-  pendingSearchInProgress = false;
+  pendingSearchSubmitted = true;
+  submittedSearchPath = location.pathname;
+  sessionStorage.removeItem(PENDING_SEARCH_KEY);
   await setStatus(`\u5df2\u4f7f\u7528 ${settings.preferredModel} \u63d0\u4ea4\u641c\u7d22\uff1a${pending.query}`);
 }
 
@@ -704,7 +697,6 @@ function watchPage() {
       attemptedApplyKey = "";
       if (!location.pathname.startsWith("/search/")) {
         pendingSearchSubmitted = false;
-        pendingSearchInProgress = false;
         submittedSearchPath = "";
       }
       scheduleSelection(500);
