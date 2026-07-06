@@ -108,6 +108,13 @@ function modelAliases() {
   return [...new Set([settings.preferredModel, ...aliases].filter(Boolean).map(normalizeText))];
 }
 
+function modelQueryTokens() {
+  return normalizeText(settings.preferredModel)
+    .split(/[^a-z0-9.\u4e00-\u9fa5]+/i)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2);
+}
+
 function currentModelLabels() {
   return (Array.isArray(settings.currentModelLabels)
     ? settings.currentModelLabels
@@ -193,7 +200,11 @@ function findPreferredModelOption() {
         role: clickable.getAttribute("role") || ""
       };
     })
-    .filter((candidate) => aliases.some((alias) => candidate.text.includes(alias)));
+    .map((candidate) => ({
+      ...candidate,
+      score: scoreModelOption(candidate.text, aliases)
+    }))
+    .filter((candidate) => candidate.score >= 65);
 
   return candidates
     .filter((candidate, index, all) => {
@@ -201,8 +212,64 @@ function findPreferredModelOption() {
     })
     .sort((a, b) => {
       const roleScore = (candidate) => candidate.role === "menuitemradio" ? 0 : 1;
-      return roleScore(a) - roleScore(b) || a.text.length - b.text.length;
+      return b.score - a.score || roleScore(a) - roleScore(b) || a.text.length - b.text.length;
     })[0]?.element || null;
+}
+
+function scoreModelOption(optionText, aliases) {
+  const text = normalizeText(optionText);
+  if (!text) {
+    return 0;
+  }
+
+  if (aliases.some((alias) => alias && text === alias)) {
+    return 120;
+  }
+
+  if (aliases.some((alias) => alias && text.includes(alias))) {
+    return 105;
+  }
+
+  const tokens = modelQueryTokens();
+  if (tokens.length === 0) {
+    return 0;
+  }
+
+  let score = 0;
+  let covered = 0;
+  let previousIndex = -1;
+
+  for (const token of tokens) {
+    const index = text.indexOf(token);
+    if (index >= 0) {
+      covered += 1;
+      score += token.length >= 4 ? 28 : 20;
+      if (previousIndex >= 0 && index > previousIndex) {
+        score += 8;
+      }
+      previousIndex = index;
+      continue;
+    }
+
+    const looseMatch = text.split(/[^a-z0-9.\u4e00-\u9fa5]+/i)
+      .some((part) => part.startsWith(token) || token.startsWith(part));
+    if (looseMatch) {
+      covered += 0.5;
+      score += 10;
+    }
+  }
+
+  const coverage = covered / tokens.length;
+  if (coverage < 0.75) {
+    return 0;
+  }
+
+  if (containsModelNameToken(text)) {
+    score += 12;
+  }
+
+  score += Math.round(coverage * 35);
+  return score;
 }
 
 function clickElement(element) {
@@ -386,7 +453,7 @@ async function selectPreferredModel() {
       closeOpenMenu();
       log("Preferred model option not found.");
       failedApplyKey = applyKey;
-      await setStatus(`\u672a\u627e\u5230\u6a21\u578b\uff1a${settings.preferredModel}\uff0c\u8bf7\u91cd\u65b0\u8f93\u5165\u4e00\u4e2a\u5f53\u524d\u5b58\u5728\u7684\u6a21\u578b`);
+      await setStatus(`\u672a\u627e\u5230\u63a5\u8fd1\u7684\u6a21\u578b\uff1a${settings.preferredModel}\uff0c\u8bf7\u91cd\u65b0\u8f93\u5165\u4e00\u4e2a\u5f53\u524d\u5b58\u5728\u7684\u6a21\u578b`);
       return;
     }
 
