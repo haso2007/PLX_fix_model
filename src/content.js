@@ -373,25 +373,10 @@ function pastePromptValue(input, value) {
   const data = new DataTransfer();
   data.setData("text/plain", value);
 
-  input.dispatchEvent(new InputEvent("beforeinput", {
-    bubbles: true,
-    cancelable: true,
-    inputType: "insertFromPaste",
-    data: value,
-    dataTransfer: data
-  }));
-
   input.dispatchEvent(new ClipboardEvent("paste", {
     bubbles: true,
     cancelable: true,
     clipboardData: data
-  }));
-
-  input.dispatchEvent(new InputEvent("input", {
-    bubbles: true,
-    inputType: "insertFromPaste",
-    data: value,
-    dataTransfer: data
   }));
 }
 
