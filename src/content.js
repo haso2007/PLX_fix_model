@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS = {
     "Auto",
     "\u6700\u4f73"
   ],
+  lastStatus: "",
+  lastStatusAt: 0,
   debug: false
 };
 
@@ -38,6 +40,15 @@ let selectTimer = null;
 let selecting = false;
 let lastAttemptAt = 0;
 let lastUrl = location.href;
+
+async function setStatus(status) {
+  settings.lastStatus = status;
+  settings.lastStatusAt = Date.now();
+  await chrome.storage.sync.set({
+    lastStatus: status,
+    lastStatusAt: settings.lastStatusAt
+  });
+}
 
 function log(...args) {
   if (settings.debug) {
@@ -228,11 +239,13 @@ async function selectPreferredModel() {
     const trigger = findModelTrigger();
     if (!trigger) {
       log("Model trigger not found.");
+      await setStatus("\u672a\u627e\u5230\u6a21\u578b\u6309\u94ae\uff0c\u8bf7\u786e\u8ba4 Perplexity \u9875\u9762\u5df2\u52a0\u8f7d\u5b8c\u6210");
       return;
     }
 
     if (elementContainsAny(trigger, aliases)) {
       log("Trigger already shows preferred model.");
+      await setStatus(`\u5df2\u662f\u5f53\u524d\u6a21\u578b\uff1a${settings.preferredModel}`);
       return;
     }
 
@@ -243,11 +256,13 @@ async function selectPreferredModel() {
     if (!option) {
       closeOpenMenu();
       log("Preferred model option not found.");
+      await setStatus(`\u672a\u627e\u5230\u6a21\u578b\uff1a${settings.preferredModel}\uff0c\u8bf7\u91cd\u65b0\u8f93\u5165\u4e00\u4e2a\u5f53\u524d\u5b58\u5728\u7684\u6a21\u578b`);
       return;
     }
 
     log("Selecting preferred model.", option);
     clickElement(option);
+    await setStatus(`\u5df2\u5207\u6362\u5230\uff1a${settings.preferredModel}`);
   } finally {
     setTimeout(() => {
       selecting = false;

@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS = {
     "Auto",
     "\u6700\u4f73"
   ],
+  lastStatus: "",
+  lastStatusAt: 0,
   debug: false
 };
 
@@ -35,9 +37,6 @@ function arrayToLines(value) {
 
 function setStatus(text) {
   fields.status.textContent = text;
-  setTimeout(() => {
-    fields.status.textContent = "";
-  }, 1800);
 }
 
 function render(settings) {
@@ -45,6 +44,7 @@ function render(settings) {
   fields.aliases.value = arrayToLines(settings.aliases);
   fields.currentModelLabels.value = arrayToLines(settings.currentModelLabels);
   fields.debug.checked = Boolean(settings.debug);
+  setStatus(settings.lastStatus || "");
 }
 
 async function load() {
@@ -53,13 +53,16 @@ async function load() {
 }
 
 async function save() {
+  const preferredModel = fields.preferredModel.value.trim() || DEFAULT_SETTINGS.preferredModel;
   await chrome.storage.sync.set({
-    preferredModel: fields.preferredModel.value.trim() || DEFAULT_SETTINGS.preferredModel,
-    aliases: linesToArray(fields.aliases.value),
+    preferredModel,
+    aliases: [...new Set([preferredModel, ...linesToArray(fields.aliases.value)])],
     currentModelLabels: linesToArray(fields.currentModelLabels.value),
+    lastStatus: "\u5df2\u4fdd\u5b58\uff0c\u6b63\u5728 Perplexity \u9875\u9762\u5c1d\u8bd5\u5e94\u7528...",
+    lastStatusAt: Date.now(),
     debug: fields.debug.checked
   });
-  setStatus("\u5df2\u4fdd\u5b58");
+  setStatus("\u5df2\u4fdd\u5b58\uff0c\u6b63\u5728 Perplexity \u9875\u9762\u5c1d\u8bd5\u5e94\u7528...");
 }
 
 async function restoreDefaults() {
@@ -70,5 +73,15 @@ async function restoreDefaults() {
 
 document.querySelector("#save").addEventListener("click", save);
 document.querySelector("#restore").addEventListener("click", restoreDefaults);
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "sync") {
+    return;
+  }
+
+  if (changes.lastStatus) {
+    setStatus(changes.lastStatus.newValue || "");
+  }
+});
 
 load();
