@@ -35,6 +35,9 @@ const MODEL_NAME_TOKENS = [
   "llama",
   "mistral"
 ];
+const PENDING_SEARCH_KEY = "pamPendingSearch";
+
+captureDirectSearch();
 
 let settings = { ...DEFAULT_SETTINGS };
 let selectTimer = null;
@@ -44,6 +47,24 @@ let lastUrl = location.href;
 let thinkingAttemptedKey = "";
 let failedApplyKey = "";
 let attemptedApplyKey = "";
+let pendingSearchSubmitted = false;
+
+function captureDirectSearch() {
+  const url = new URL(location.href);
+  const query = url.searchParams.get("q");
+  if (!query || !location.pathname.startsWith("/search")) {
+    return;
+  }
+
+  const pending = {
+    query,
+    capturedAt: Date.now(),
+    url: location.href
+  };
+
+  sessionStorage.setItem(PENDING_SEARCH_KEY, JSON.stringify(pending));
+  history.replaceState(null, "", "/");
+}
 
 async function setStatus(status) {
   settings.lastStatus = status;
@@ -279,6 +300,116 @@ function clickElement(element) {
   element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
 }
 
+function getPendingSearch() {
+  try {
+    const raw = sessionStorage.getItem(PENDING_SEARCH_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const pending = JSON.parse(raw);
+    if (!pending.query || Date.now() - pending.capturedAt > 120000) {
+      sessionStorage.removeItem(PENDING_SEARCH_KEY);
+      return null;
+    }
+
+    return pending;
+  } catch (error) {
+    sessionStorage.removeItem(PENDING_SEARCH_KEY);
+    return null;
+  }
+}
+
+function findPromptInput() {
+  const selectors = [
+    "textarea",
+    "[contenteditable='true']",
+    "[role='textbox']",
+    ".ProseMirror"
+  ];
+
+  return selectors
+    .flatMap((selector) => Array.from(document.querySelectorAll(selector)))
+    .filter(isVisible)
+    .sort((a, b) => {
+      const aRect = a.getBoundingClientRect();
+      const bRect = b.getBoundingClientRect();
+      return bRect.y - aRect.y || bRect.width - aRect.width;
+    })[0] || null;
+}
+
+function setPromptValue(input, value) {
+  input.focus();
+
+  if (input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement) {
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value")?.set;
+    setter?.call(input, value);
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+
+  input.textContent = value;
+  input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
+}
+
+function findSubmitButton(input) {
+  const root = input.closest("form")
+    || input.closest("[data-testid], [class]")
+    || document;
+  const buttons = Array.from(root.querySelectorAll("button,[role='button']"))
+    .filter(isVisible)
+    .filter((button) => !button.disabled && button.getAttribute("aria-disabled") !== "true");
+
+  return buttons.find((button) => {
+    const text = normalizeText(textOf(button));
+    return text.includes("\u63d0\u4ea4")
+      || text.includes("\u53d1\u9001")
+      || text.includes("send")
+      || text.includes("submit")
+      || text.includes("ask")
+      || button.querySelector("svg");
+  }) || buttons[buttons.length - 1] || null;
+}
+
+async function submitPendingSearchIfNeeded() {
+  if (pendingSearchSubmitted) {
+    return;
+  }
+
+  const pending = getPendingSearch();
+  if (!pending) {
+    return;
+  }
+
+  const input = findPromptInput();
+  if (!input) {
+    log("Pending search input not found.");
+    return;
+  }
+
+  setPromptValue(input, pending.query);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  const submitButton = findSubmitButton(input);
+  if (submitButton) {
+    clickElement(submitButton);
+  } else {
+    input.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 13,
+      which: 13,
+      bubbles: true,
+      cancelable: true
+    }));
+  }
+
+  pendingSearchSubmitted = true;
+  sessionStorage.removeItem(PENDING_SEARCH_KEY);
+  await setStatus(`\u5df2\u4f7f\u7528 ${settings.preferredModel} \u63d0\u4ea4\u641c\u7d22\uff1a${pending.query}`);
+}
+
 function closeOpenMenu() {
   document.dispatchEvent(new KeyboardEvent("keydown", {
     key: "Escape",
@@ -427,7 +558,6 @@ async function selectPreferredModel() {
   selecting = true;
 
   try {
-    attemptedApplyKey = applyKey;
     const aliases = modelAliases();
     const trigger = findModelTrigger();
     if (!trigger) {
@@ -435,12 +565,14 @@ async function selectPreferredModel() {
       await setStatus("\u672a\u627e\u5230\u6a21\u578b\u6309\u94ae\uff0c\u8bf7\u786e\u8ba4 Perplexity \u9875\u9762\u5df2\u52a0\u8f7d\u5b8c\u6210");
       return;
     }
+    attemptedApplyKey = applyKey;
 
     if (elementContainsAny(trigger, aliases)) {
       log("Trigger already shows preferred model.");
       failedApplyKey = "";
       attemptedApplyKey = "";
       const thinkingEnabled = await ensureThinkingEnabled(trigger, false);
+      await submitPendingSearchIfNeeded();
       await setStatus(`\u5df2\u662f\u5f53\u524d\u6a21\u578b\uff1a${settings.preferredModel}${thinkingEnabled ? "\uff0c\u5df2\u5c1d\u8bd5\u5f00\u542f\u601d\u8003" : ""}`);
       return;
     }
@@ -461,6 +593,7 @@ async function selectPreferredModel() {
     clickElement(option);
     failedApplyKey = "";
     const thinkingEnabled = await ensureThinkingEnabled(trigger, true);
+    await submitPendingSearchIfNeeded();
     await setStatus(`\u5df2\u5207\u6362\u5230\uff1a${settings.preferredModel}${thinkingEnabled ? "\uff0c\u5df2\u5c1d\u8bd5\u5f00\u542f\u601d\u8003" : ""}`);
   } finally {
     setTimeout(() => {
@@ -493,6 +626,7 @@ function watchPage() {
       thinkingAttemptedKey = "";
       failedApplyKey = "";
       attemptedApplyKey = "";
+      pendingSearchSubmitted = false;
       scheduleSelection(500);
       return;
     }
