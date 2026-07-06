@@ -349,8 +349,17 @@ function setPromptValue(input, value) {
     return;
   }
 
-  document.getSelection()?.selectAllChildren(input);
-  input.textContent = value;
+  const selection = document.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(input);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+
+  const inserted = document.execCommand("insertText", false, value);
+  if (!inserted) {
+    input.textContent = value;
+  }
+
   input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
@@ -383,6 +392,21 @@ function findExplicitSubmitButton() {
     }) || null;
 }
 
+async function waitForExplicitSubmitButton() {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < 2500) {
+    const button = findExplicitSubmitButton();
+    if (button) {
+      return button;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, CLICK_DELAY_MS));
+  }
+
+  return null;
+}
+
 async function submitPendingSearchIfNeeded() {
   if (pendingSearchSubmitted) {
     return;
@@ -400,9 +424,9 @@ async function submitPendingSearchIfNeeded() {
   }
 
   setPromptValue(input, pending.query);
-  await new Promise((resolve) => setTimeout(resolve, 250));
+  await new Promise((resolve) => setTimeout(resolve, 350));
 
-  const submitButton = findExplicitSubmitButton();
+  const submitButton = await waitForExplicitSubmitButton();
   if (submitButton) {
     clickElement(submitButton);
   } else {
