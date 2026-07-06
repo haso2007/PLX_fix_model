@@ -12,7 +12,6 @@ const DEFAULT_SETTINGS = {
     "\u6700\u4f73"
   ],
   enableThinking: false,
-  experimentalPasteInput: false,
   lastStatus: "",
   lastStatusAt: 0,
   debug: false
@@ -21,7 +20,6 @@ const DEFAULT_SETTINGS = {
 const fields = {
   preferredModel: document.querySelector("#preferredModel"),
   enableThinking: document.querySelector("#enableThinking"),
-  experimentalPasteInput: document.querySelector("#experimentalPasteInput"),
   apply: document.querySelector("#apply"),
   options: document.querySelector("#options"),
   status: document.querySelector("#status")
@@ -37,7 +35,6 @@ async function load() {
   settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   fields.preferredModel.value = settings.preferredModel || DEFAULT_SETTINGS.preferredModel;
   fields.enableThinking.checked = Boolean(settings.enableThinking);
-  fields.experimentalPasteInput.checked = Boolean(settings.experimentalPasteInput);
   setStatus(settings.lastStatus || "");
   fields.preferredModel.focus();
   fields.preferredModel.select();
@@ -54,7 +51,6 @@ async function applyModel() {
     preferredModel,
     aliases: [preferredModel],
     enableThinking: fields.enableThinking.checked,
-    experimentalPasteInput: fields.experimentalPasteInput.checked,
     lastStatus: "\u5df2\u4fdd\u5b58\uff0c\u6b63\u5728 Perplexity \u9875\u9762\u5c1d\u8bd5\u5e94\u7528...",
     lastStatusAt: Date.now()
   });
@@ -89,11 +85,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (changes.enableThinking) {
     settings.enableThinking = changes.enableThinking.newValue;
     fields.enableThinking.checked = Boolean(settings.enableThinking);
-  }
-
-  if (changes.experimentalPasteInput) {
-    settings.experimentalPasteInput = changes.experimentalPasteInput.newValue;
-    fields.experimentalPasteInput.checked = Boolean(settings.experimentalPasteInput);
   }
 });
 
