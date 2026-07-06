@@ -50,6 +50,7 @@ let attemptedApplyKey = "";
 let pendingSearchSubmitted = false;
 let pendingSearchInProgress = false;
 let submittedSearchPath = "";
+let suppressModelSelectionUntil = 0;
 
 function captureDirectSearch() {
   const url = new URL(location.href);
@@ -459,6 +460,7 @@ async function submitPendingSearchIfNeeded() {
 
   pendingSearchSubmitted = true;
   submittedSearchPath = location.pathname;
+  suppressModelSelectionUntil = Date.now() + 30000;
   sessionStorage.removeItem(PENDING_SEARCH_KEY);
 
   pastePromptValue(input, pending.query);
@@ -626,6 +628,10 @@ async function selectPreferredModel() {
     return;
   }
 
+  if (location.pathname.startsWith("/search/") && Date.now() < suppressModelSelectionUntil) {
+    return;
+  }
+
   const now = Date.now();
   if (now - lastAttemptAt < SETTLE_DELAY_MS) {
     return;
@@ -706,6 +712,7 @@ function watchPage() {
         pendingSearchSubmitted = false;
         pendingSearchInProgress = false;
         submittedSearchPath = "";
+        suppressModelSelectionUntil = 0;
       }
       scheduleSelection(500);
       return;
