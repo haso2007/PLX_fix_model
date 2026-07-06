@@ -48,7 +48,7 @@ Claude Sonnet 5.0
 https://www.perplexity.ai/search?q=%s&copilot=true
 ```
 
-扩展会在页面脚本自动搜索前截获 `q` 参数，先切换到你指定的模型，再通过粘贴输入事件把搜索内容提交给 Perplexity。这样可以避免先用默认模型生成回答。
+扩展会在页面脚本自动搜索前截获 `q` 参数，先切换到你指定的模型，再把搜索内容提交给 Perplexity。这样可以避免先用默认模型生成回答。
 
 ## 公司代理
 

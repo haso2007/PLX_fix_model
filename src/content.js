@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS = {
     "\u6700\u4f73"
   ],
   enableThinking: false,
+  experimentalPasteInput: false,
   lastStatus: "",
   lastStatusAt: 0,
   debug: false
@@ -48,7 +49,6 @@ let thinkingAttemptedKey = "";
 let failedApplyKey = "";
 let attemptedApplyKey = "";
 let pendingSearchSubmitted = false;
-let submittedSearchPath = "";
 
 function captureDirectSearch() {
   const url = new URL(location.href);
@@ -452,8 +452,10 @@ async function submitPendingSearchIfNeeded() {
     return;
   }
 
-  pastePromptValue(input, pending.query);
-  await new Promise((resolve) => setTimeout(resolve, 250));
+  if (settings.experimentalPasteInput) {
+    pastePromptValue(input, pending.query);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
 
   if (!normalizeText(input.value || input.innerText || input.textContent).includes(normalizeText(pending.query))) {
     setPromptValue(input, pending.query);
@@ -469,7 +471,6 @@ async function submitPendingSearchIfNeeded() {
   }
 
   pendingSearchSubmitted = true;
-  submittedSearchPath = location.pathname;
   sessionStorage.removeItem(PENDING_SEARCH_KEY);
   await setStatus(`\u5df2\u4f7f\u7528 ${settings.preferredModel} \u63d0\u4ea4\u641c\u7d22\uff1a${pending.query}`);
 }
@@ -614,11 +615,6 @@ async function selectPreferredModel() {
     return;
   }
 
-  if (pendingSearchSubmitted && location.pathname.startsWith("/search/") && location.pathname !== submittedSearchPath) {
-    submittedSearchPath = location.pathname;
-    return;
-  }
-
   const now = Date.now();
   if (now - lastAttemptAt < SETTLE_DELAY_MS) {
     return;
@@ -695,10 +691,7 @@ function watchPage() {
       thinkingAttemptedKey = "";
       failedApplyKey = "";
       attemptedApplyKey = "";
-      if (!location.pathname.startsWith("/search/")) {
-        pendingSearchSubmitted = false;
-        submittedSearchPath = "";
-      }
+      pendingSearchSubmitted = false;
       scheduleSelection(500);
       return;
     }
@@ -738,6 +731,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     "aliases",
     "currentModelLabels",
     "enableThinking",
+    "experimentalPasteInput",
     "debug"
   ].some((key) => Object.prototype.hasOwnProperty.call(changes, key));
 
