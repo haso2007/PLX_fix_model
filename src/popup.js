@@ -49,7 +49,7 @@ async function applyModel() {
 
   await chrome.storage.sync.set({
     preferredModel,
-    aliases: [...new Set([preferredModel, ...(Array.isArray(settings.aliases) ? settings.aliases : [])])],
+    aliases: [preferredModel],
     enableThinking: fields.enableThinking.checked,
     lastStatus: "\u5df2\u4fdd\u5b58\uff0c\u6b63\u5728 Perplexity \u9875\u9762\u5c1d\u8bd5\u5e94\u7528...",
     lastStatusAt: Date.now()

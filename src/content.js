@@ -42,6 +42,7 @@ let selecting = false;
 let lastAttemptAt = 0;
 let lastUrl = location.href;
 let thinkingAttemptedKey = "";
+let failedApplyKey = "";
 
 async function setStatus(status) {
   settings.lastStatus = status;
@@ -213,6 +214,15 @@ function thinkingAttemptKey() {
   return `${location.pathname}|${settings.preferredModel || ""}|${settings.enableThinking ? "on" : "off"}`;
 }
 
+function modelApplyKey() {
+  return [
+    location.pathname,
+    settings.preferredModel || "",
+    modelAliases().join("|"),
+    settings.enableThinking ? "thinking" : "normal"
+  ].join("::");
+}
+
 function findThinkingToggle() {
   const labels = ["\u6b63\u5728\u601d\u8003", "thinking"].map(normalizeText);
   const candidates = Array.from(document.querySelectorAll("button,[role='button'],[role='switch'],[role='checkbox'],label,div,span"))
@@ -322,6 +332,11 @@ async function selectPreferredModel() {
     return;
   }
 
+  const applyKey = modelApplyKey();
+  if (failedApplyKey === applyKey) {
+    return;
+  }
+
   const now = Date.now();
   if (now - lastAttemptAt < SETTLE_DELAY_MS) {
     return;
@@ -340,6 +355,7 @@ async function selectPreferredModel() {
 
     if (elementContainsAny(trigger, aliases)) {
       log("Trigger already shows preferred model.");
+      failedApplyKey = "";
       const thinkingEnabled = await ensureThinkingEnabled(trigger, false);
       await setStatus(`\u5df2\u662f\u5f53\u524d\u6a21\u578b\uff1a${settings.preferredModel}${thinkingEnabled ? "\uff0c\u5df2\u5c1d\u8bd5\u5f00\u542f\u601d\u8003" : ""}`);
       return;
@@ -352,12 +368,14 @@ async function selectPreferredModel() {
     if (!option) {
       closeOpenMenu();
       log("Preferred model option not found.");
+      failedApplyKey = applyKey;
       await setStatus(`\u672a\u627e\u5230\u6a21\u578b\uff1a${settings.preferredModel}\uff0c\u8bf7\u91cd\u65b0\u8f93\u5165\u4e00\u4e2a\u5f53\u524d\u5b58\u5728\u7684\u6a21\u578b`);
       return;
     }
 
     log("Selecting preferred model.", option);
     clickElement(option);
+    failedApplyKey = "";
     const thinkingEnabled = await ensureThinkingEnabled(trigger, true);
     await setStatus(`\u5df2\u5207\u6362\u5230\uff1a${settings.preferredModel}${thinkingEnabled ? "\uff0c\u5df2\u5c1d\u8bd5\u5f00\u542f\u601d\u8003" : ""}`);
   } finally {
@@ -389,6 +407,7 @@ function watchPage() {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       thinkingAttemptedKey = "";
+      failedApplyKey = "";
       scheduleSelection(500);
       return;
     }
@@ -424,5 +443,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 
   thinkingAttemptedKey = "";
+  failedApplyKey = "";
   scheduleSelection(200);
 });
