@@ -349,27 +349,67 @@ function setPromptValue(input, value) {
     return;
   }
 
+  document.getSelection()?.selectAllChildren(input);
   input.textContent = value;
   input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function findSubmitButton(input) {
-  const root = input.closest("form")
-    || input.closest("[data-testid], [class]")
-    || document;
-  const buttons = Array.from(root.querySelectorAll("button,[role='button']"))
-    .filter(isVisible)
-    .filter((button) => !button.disabled && button.getAttribute("aria-disabled") !== "true");
+  const inputRect = input.getBoundingClientRect();
+  const roots = [
+    input.closest("form"),
+    input.closest("[class*='composer' i]"),
+    input.closest("[class*='input' i]"),
+    input.closest("[data-testid]"),
+    input.parentElement?.parentElement?.parentElement,
+    document
+  ].filter(Boolean);
 
-  return buttons.find((button) => {
-    const text = normalizeText(textOf(button));
+  const buttons = [...new Set(roots.flatMap((root) => Array.from(root.querySelectorAll("button,[role='button']"))))]
+    .filter(isVisible)
+    .filter((button) => !button.disabled && button.getAttribute("aria-disabled") !== "true")
+    .map((button) => {
+      const rect = button.getBoundingClientRect();
+      const text = normalizeText(textOf(button));
+      return {
+        button,
+        text,
+        rect,
+        distance: Math.abs((rect.top + rect.bottom) / 2 - (inputRect.top + inputRect.bottom) / 2)
+      };
+    })
+    .filter((candidate) => candidate.distance < 120);
+
+  const labeled = buttons.find(({ text }) => {
     return text.includes("\u63d0\u4ea4")
       || text.includes("\u53d1\u9001")
       || text.includes("send")
       || text.includes("submit")
-      || text.includes("ask")
-      || button.querySelector("svg");
-  }) || buttons[buttons.length - 1] || null;
+      || text.includes("ask");
+  });
+  if (labeled) {
+    return labeled.button;
+  }
+
+  return buttons
+    .filter(({ rect }) => rect.left > inputRect.left && rect.top >= inputRect.top - 20)
+    .sort((a, b) => b.rect.right - a.rect.right || a.distance - b.distance)[0]?.button
+    || null;
+}
+
+function pressEnter(input) {
+  input.focus();
+  for (const type of ["keydown", "keypress", "keyup"]) {
+    input.dispatchEvent(new KeyboardEvent(type, {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 13,
+      which: 13,
+      bubbles: true,
+      cancelable: true
+    }));
+  }
 }
 
 async function submitPendingSearchIfNeeded() {
@@ -394,15 +434,12 @@ async function submitPendingSearchIfNeeded() {
   const submitButton = findSubmitButton(input);
   if (submitButton) {
     clickElement(submitButton);
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    if (location.pathname === "/" || getPendingSearch()) {
+      pressEnter(input);
+    }
   } else {
-    input.dispatchEvent(new KeyboardEvent("keydown", {
-      key: "Enter",
-      code: "Enter",
-      keyCode: 13,
-      which: 13,
-      bubbles: true,
-      cancelable: true
-    }));
+    pressEnter(input);
   }
 
   pendingSearchSubmitted = true;
