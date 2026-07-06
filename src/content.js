@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS = {
     "\u6700\u4f73"
   ],
   enableThinking: false,
+  experimentalPasteInput: false,
   lastStatus: "",
   lastStatusAt: 0,
   debug: false
@@ -364,6 +365,34 @@ function setPromptValue(input, value) {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+function pastePromptValue(input, value) {
+  input.focus();
+
+  const data = new DataTransfer();
+  data.setData("text/plain", value);
+
+  input.dispatchEvent(new InputEvent("beforeinput", {
+    bubbles: true,
+    cancelable: true,
+    inputType: "insertFromPaste",
+    data: value,
+    dataTransfer: data
+  }));
+
+  input.dispatchEvent(new ClipboardEvent("paste", {
+    bubbles: true,
+    cancelable: true,
+    clipboardData: data
+  }));
+
+  input.dispatchEvent(new InputEvent("input", {
+    bubbles: true,
+    inputType: "insertFromPaste",
+    data: value,
+    dataTransfer: data
+  }));
+}
+
 function pressEnter(input) {
   input.focus();
   for (const type of ["keydown", "keypress", "keyup"]) {
@@ -423,7 +452,15 @@ async function submitPendingSearchIfNeeded() {
     return;
   }
 
-  setPromptValue(input, pending.query);
+  if (settings.experimentalPasteInput) {
+    pastePromptValue(input, pending.query);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  if (!normalizeText(input.value || input.innerText || input.textContent).includes(normalizeText(pending.query))) {
+    setPromptValue(input, pending.query);
+  }
+
   await new Promise((resolve) => setTimeout(resolve, 350));
 
   const submitButton = await waitForExplicitSubmitButton();
@@ -694,6 +731,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     "aliases",
     "currentModelLabels",
     "enableThinking",
+    "experimentalPasteInput",
     "debug"
   ].some((key) => Object.prototype.hasOwnProperty.call(changes, key));
 
