@@ -369,6 +369,20 @@ function pressEnter(input) {
   }
 }
 
+function findExplicitSubmitButton() {
+  return Array.from(document.querySelectorAll("button,[role='button']"))
+    .filter(isVisible)
+    .filter((button) => !button.disabled && button.getAttribute("aria-disabled") !== "true")
+    .find((button) => {
+      const text = normalizeText(textOf(button));
+      return text === "\u63d0\u4ea4"
+        || text === "\u53d1\u9001"
+        || text === "send"
+        || text === "submit"
+        || text === "ask";
+    }) || null;
+}
+
 async function submitPendingSearchIfNeeded() {
   if (pendingSearchSubmitted) {
     return;
@@ -388,7 +402,12 @@ async function submitPendingSearchIfNeeded() {
   setPromptValue(input, pending.query);
   await new Promise((resolve) => setTimeout(resolve, 250));
 
-  pressEnter(input);
+  const submitButton = findExplicitSubmitButton();
+  if (submitButton) {
+    clickElement(submitButton);
+  } else {
+    pressEnter(input);
+  }
 
   pendingSearchSubmitted = true;
   sessionStorage.removeItem(PENDING_SEARCH_KEY);
