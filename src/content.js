@@ -355,45 +355,6 @@ function setPromptValue(input, value) {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-function findSubmitButton(input) {
-  const roots = [
-    input.closest("form"),
-    input.closest("[class*='composer' i]"),
-    input.closest("[class*='input' i]"),
-    input.closest("[data-testid]"),
-    input.parentElement?.parentElement?.parentElement,
-    document
-  ].filter(Boolean);
-
-  const buttons = [...new Set(roots.flatMap((root) => Array.from(root.querySelectorAll("button,[role='button']"))))]
-    .filter(isVisible)
-    .filter((button) => !button.disabled && button.getAttribute("aria-disabled") !== "true")
-    .map((button) => ({
-      button,
-      text: normalizeText(textOf(button))
-    }));
-
-  return buttons.find(({ text }) => {
-    const isVoiceButton = text.includes("\u8bed\u97f3")
-      || text.includes("\u542c\u5199")
-      || text.includes("\u9ea6\u514b\u98ce")
-      || text.includes("voice")
-      || text.includes("dictation")
-      || text.includes("microphone");
-
-    if (isVoiceButton) {
-      return false;
-    }
-
-    return text.includes("\u63d0\u4ea4")
-      || text.includes("\u53d1\u9001")
-      || text.includes("\u641c\u7d22")
-      || text.includes("send")
-      || text.includes("submit")
-      || text.includes("ask");
-  })?.button || null;
-}
-
 function pressEnter(input) {
   input.focus();
   for (const type of ["keydown", "keypress", "keyup"]) {
@@ -427,13 +388,7 @@ async function submitPendingSearchIfNeeded() {
   setPromptValue(input, pending.query);
   await new Promise((resolve) => setTimeout(resolve, 250));
 
-  const submitButton = findSubmitButton(input);
-  if (submitButton) {
-    clickElement(submitButton);
-    await new Promise((resolve) => setTimeout(resolve, 350));
-  } else {
-    pressEnter(input);
-  }
+  pressEnter(input);
 
   pendingSearchSubmitted = true;
   sessionStorage.removeItem(PENDING_SEARCH_KEY);
