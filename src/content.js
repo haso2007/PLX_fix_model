@@ -95,7 +95,7 @@ function isVisible(element) {
 }
 
 function getClickableAncestor(element) {
-  return element.closest("button,[role='button'],[aria-haspopup='menu'],[aria-expanded],a") || element;
+  return element.closest("[role='menuitemradio'],[role='menuitem'],[role='option'],button,[role='button'],[aria-haspopup='menu'],[aria-expanded],a") || element;
 }
 
 function containsModelNameToken(text) {
@@ -171,6 +171,7 @@ function findModelTrigger() {
 function optionSelectors() {
   return [
     "[role='option']",
+    "[role='menuitemradio']",
     "[role='menuitem']",
     "[cmdk-item]",
     "button",
@@ -184,14 +185,24 @@ function findPreferredModelOption() {
   const aliases = modelAliases();
   const candidates = Array.from(document.querySelectorAll(optionSelectors()))
     .filter(isVisible)
-    .map((element) => ({ element: getClickableAncestor(element), text: normalizeText(textOf(element)) }))
+    .map((element) => {
+      const clickable = getClickableAncestor(element);
+      return {
+        element: clickable,
+        text: normalizeText(textOf(clickable) || textOf(element)),
+        role: clickable.getAttribute("role") || ""
+      };
+    })
     .filter((candidate) => aliases.some((alias) => candidate.text.includes(alias)));
 
   return candidates
     .filter((candidate, index, all) => {
       return all.findIndex((other) => other.element === candidate.element) === index;
     })
-    .sort((a, b) => a.text.length - b.text.length)[0]?.element || null;
+    .sort((a, b) => {
+      const roleScore = (candidate) => candidate.role === "menuitemradio" ? 0 : 1;
+      return roleScore(a) - roleScore(b) || a.text.length - b.text.length;
+    })[0]?.element || null;
 }
 
 function clickElement(element) {
@@ -265,6 +276,9 @@ function isToggleOn(toggle) {
 
 async function ensureThinkingEnabled(trigger, menuIsOpen = false) {
   if (!settings.enableThinking || thinkingAttemptedKey === thinkingAttemptKey()) {
+    if (menuIsOpen) {
+      closeOpenMenu();
+    }
     return false;
   }
 
