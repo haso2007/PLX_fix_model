@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS = {
     "Auto",
     "\u6700\u4f73"
   ],
+  enableThinking: false,
   lastStatus: "",
   lastStatusAt: 0,
   debug: false
@@ -20,6 +21,7 @@ const fields = {
   preferredModel: document.querySelector("#preferredModel"),
   aliases: document.querySelector("#aliases"),
   currentModelLabels: document.querySelector("#currentModelLabels"),
+  enableThinking: document.querySelector("#enableThinking"),
   debug: document.querySelector("#debug"),
   status: document.querySelector("#status")
 };
@@ -43,6 +45,7 @@ function render(settings) {
   fields.preferredModel.value = settings.preferredModel;
   fields.aliases.value = arrayToLines(settings.aliases);
   fields.currentModelLabels.value = arrayToLines(settings.currentModelLabels);
+  fields.enableThinking.checked = Boolean(settings.enableThinking);
   fields.debug.checked = Boolean(settings.debug);
   setStatus(settings.lastStatus || "");
 }
@@ -58,6 +61,7 @@ async function save() {
     preferredModel,
     aliases: [...new Set([preferredModel, ...linesToArray(fields.aliases.value)])],
     currentModelLabels: linesToArray(fields.currentModelLabels.value),
+    enableThinking: fields.enableThinking.checked,
     lastStatus: "\u5df2\u4fdd\u5b58\uff0c\u6b63\u5728 Perplexity \u9875\u9762\u5c1d\u8bd5\u5e94\u7528...",
     lastStatusAt: Date.now(),
     debug: fields.debug.checked

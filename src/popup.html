@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Perplexity Model</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <label>
+        指定模型
+        <input id="preferredModel" type="text" autocomplete="off" spellcheck="false">
+      </label>
+
+      <label class="check">
+        <input id="enableThinking" type="checkbox">
+        启用思考
+      </label>
+
+      <button id="apply" type="button">应用</button>
+
+      <p id="status" aria-live="polite"></p>
+
+      <button id="options" class="link" type="button">高级选项</button>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Perplexity Preferred Model",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Automatically selects your preferred model on Perplexity instead of Best.",
   "permissions": [
     "storage"
@@ -24,6 +24,7 @@
   ],
   "options_page": "src/options.html",
   "action": {
-    "default_title": "Perplexity Preferred Model"
+    "default_title": "Perplexity Preferred Model",
+    "default_popup": "src/popup.html"
   }
 }

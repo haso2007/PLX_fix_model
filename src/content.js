@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS = {
     "Auto",
     "\u6700\u4f73"
   ],
+  enableThinking: false,
   lastStatus: "",
   lastStatusAt: 0,
   debug: false
@@ -40,6 +41,7 @@ let selectTimer = null;
 let selecting = false;
 let lastAttemptAt = 0;
 let lastUrl = location.href;
+let thinkingAttemptedKey = "";
 
 async function setStatus(status) {
   settings.lastStatus = status;
@@ -207,6 +209,99 @@ function closeOpenMenu() {
   }));
 }
 
+function thinkingAttemptKey() {
+  return `${location.pathname}|${settings.preferredModel || ""}|${settings.enableThinking ? "on" : "off"}`;
+}
+
+function findThinkingToggle() {
+  const labels = ["\u6b63\u5728\u601d\u8003", "thinking"].map(normalizeText);
+  const candidates = Array.from(document.querySelectorAll("button,[role='button'],[role='switch'],[role='checkbox'],label,div,span"))
+    .filter(isVisible)
+    .filter((element) => {
+      const text = normalizeText(textOf(element));
+      return text.length <= 120 && labels.some((label) => text.includes(label));
+    });
+
+  for (const candidate of candidates) {
+    let container = candidate;
+    for (let depth = 0; depth < 5 && container; depth += 1) {
+      const toggle = container.querySelector("[role='switch'],[role='checkbox'],[aria-checked],input[type='checkbox'],button[data-state]");
+      if (toggle && isVisible(toggle)) {
+        return toggle;
+      }
+      container = container.parentElement;
+    }
+  }
+
+  return null;
+}
+
+function isToggleOn(toggle) {
+  if (toggle instanceof HTMLInputElement && toggle.type === "checkbox") {
+    return toggle.checked;
+  }
+
+  const ariaChecked = toggle.getAttribute("aria-checked");
+  if (ariaChecked === "true") return true;
+  if (ariaChecked === "false") return false;
+
+  const dataState = normalizeText(toggle.getAttribute("data-state"));
+  if (["checked", "on", "open", "true"].includes(dataState)) return true;
+  if (["unchecked", "off", "closed", "false"].includes(dataState)) return false;
+
+  return false;
+}
+
+async function ensureThinkingEnabled(trigger, menuIsOpen = false) {
+  if (!settings.enableThinking || thinkingAttemptedKey === thinkingAttemptKey()) {
+    return false;
+  }
+
+  thinkingAttemptedKey = thinkingAttemptKey();
+  let openedMenu = false;
+
+  try {
+    if (!menuIsOpen) {
+      clickElement(trigger);
+      openedMenu = true;
+      await new Promise((resolve) => setTimeout(resolve, CLICK_DELAY_MS));
+    }
+
+    let toggle = null;
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < 1800) {
+      toggle = findThinkingToggle();
+      if (toggle) break;
+      await new Promise((resolve) => setTimeout(resolve, CLICK_DELAY_MS));
+    }
+
+    if (!toggle && menuIsOpen) {
+      clickElement(trigger);
+      openedMenu = true;
+      await new Promise((resolve) => setTimeout(resolve, CLICK_DELAY_MS));
+      toggle = findThinkingToggle();
+    }
+
+    if (!toggle) {
+      log("Thinking toggle not found.");
+      return false;
+    }
+
+    if (isToggleOn(toggle)) {
+      log("Thinking toggle already enabled.");
+      return true;
+    }
+
+    clickElement(toggle);
+    log("Thinking toggle enabled.");
+    return true;
+  } finally {
+    if (openedMenu || menuIsOpen) {
+      closeOpenMenu();
+    }
+  }
+}
+
 async function waitForPreferredOption() {
   const startedAt = Date.now();
 
@@ -245,7 +340,8 @@ async function selectPreferredModel() {
 
     if (elementContainsAny(trigger, aliases)) {
       log("Trigger already shows preferred model.");
-      await setStatus(`\u5df2\u662f\u5f53\u524d\u6a21\u578b\uff1a${settings.preferredModel}`);
+      const thinkingEnabled = await ensureThinkingEnabled(trigger, false);
+      await setStatus(`\u5df2\u662f\u5f53\u524d\u6a21\u578b\uff1a${settings.preferredModel}${thinkingEnabled ? "\uff0c\u5df2\u5c1d\u8bd5\u5f00\u542f\u601d\u8003" : ""}`);
       return;
     }
 
@@ -262,7 +358,8 @@ async function selectPreferredModel() {
 
     log("Selecting preferred model.", option);
     clickElement(option);
-    await setStatus(`\u5df2\u5207\u6362\u5230\uff1a${settings.preferredModel}`);
+    const thinkingEnabled = await ensureThinkingEnabled(trigger, true);
+    await setStatus(`\u5df2\u5207\u6362\u5230\uff1a${settings.preferredModel}${thinkingEnabled ? "\uff0c\u5df2\u5c1d\u8bd5\u5f00\u542f\u601d\u8003" : ""}`);
   } finally {
     setTimeout(() => {
       selecting = false;
@@ -291,6 +388,7 @@ function watchPage() {
   const observer = new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
+      thinkingAttemptedKey = "";
       scheduleSelection(500);
       return;
     }
@@ -325,5 +423,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     settings[key] = change.newValue;
   }
 
+  thinkingAttemptedKey = "";
   scheduleSelection(200);
 });
