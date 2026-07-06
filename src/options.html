@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Perplexity Preferred Model</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main>
+      <h1>Perplexity Preferred Model</h1>
+
+      <label>
+        指定模型
+        <input id="preferredModel" type="text" autocomplete="off" spellcheck="false">
+      </label>
+
+      <label>
+        匹配别名
+        <textarea id="aliases" rows="5" spellcheck="false"></textarea>
+      </label>
+
+      <label>
+        需要被替换的当前模型标签
+        <textarea id="currentModelLabels" rows="4" spellcheck="false"></textarea>
+      </label>
+
+      <label class="check">
+        <input id="debug" type="checkbox">
+        输出调试日志
+      </label>
+
+      <div class="actions">
+        <button id="save" type="button">保存</button>
+        <button id="restore" type="button">恢复默认</button>
+        <span id="status" aria-live="polite"></span>
+      </div>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>

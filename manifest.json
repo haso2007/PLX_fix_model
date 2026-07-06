@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Perplexity Preferred Model",
+  "version": "0.1.0",
+  "description": "Automatically selects your preferred model on Perplexity instead of Best.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.perplexity.ai/*",
+    "https://perplexity.ai/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.perplexity.ai/*",
+        "https://perplexity.ai/*"
+      ],
+      "js": [
+        "src/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "src/options.html",
+  "action": {
+    "default_title": "Perplexity Preferred Model"
+  }
+}
