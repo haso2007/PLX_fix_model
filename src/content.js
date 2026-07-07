@@ -51,6 +51,8 @@ let pendingSearchSubmitted = false;
 let pendingSearchInProgress = false;
 let submittedSearchPath = "";
 let submittedSearchApplyKey = "";
+let appliedModelKey = "";
+let forceModelSelection = false;
 
 function isSettingsRoute() {
   const hash = (location.hash || "").toLocaleLowerCase();
@@ -499,6 +501,14 @@ function modelApplyKey() {
   ].join("::");
 }
 
+function modelStateKey() {
+  return [
+    settings.preferredModel || "",
+    modelAliases().join("|"),
+    settings.enableThinking ? "thinking" : "normal"
+  ].join("::");
+}
+
 function findThinkingToggle() {
   const labels = ["\u6b63\u5728\u601d\u8003", "thinking"].map(normalizeText);
   const candidates = Array.from(document.querySelectorAll("button,[role='button'],[role='switch'],[role='checkbox'],label,div,span"))
@@ -611,13 +621,14 @@ async function selectPreferredModel() {
     return;
   }
   if (selecting) {
+    if (forceModelSelection) {
+      scheduleSelection(SETTLE_DELAY_MS + 100);
+    }
     return;
   }
 
   const applyKey = modelApplyKey();
-  if (failedApplyKey === applyKey || attemptedApplyKey === applyKey) {
-    return;
-  }
+  const modelKey = modelStateKey();
 
   if (pendingSearchSubmitted && location.pathname.startsWith("/search/") && location.pathname !== submittedSearchPath) {
     submittedSearchPath = location.pathname;
@@ -626,16 +637,30 @@ async function selectPreferredModel() {
     return;
   }
 
-  if (submittedSearchApplyKey === applyKey) {
+  if (!forceModelSelection && submittedSearchApplyKey === applyKey) {
+    return;
+  }
+
+  if (!forceModelSelection && appliedModelKey === modelKey) {
+    await submitPendingSearchIfNeeded();
+    return;
+  }
+
+  if (!forceModelSelection && (failedApplyKey === applyKey || attemptedApplyKey === applyKey)) {
     return;
   }
 
   const now = Date.now();
-  if (now - lastAttemptAt < SETTLE_DELAY_MS) {
+  const elapsedSinceLastAttempt = now - lastAttemptAt;
+  if (elapsedSinceLastAttempt < SETTLE_DELAY_MS) {
+    if (forceModelSelection) {
+      scheduleSelection(SETTLE_DELAY_MS - elapsedSinceLastAttempt + 100);
+    }
     return;
   }
   lastAttemptAt = now;
   selecting = true;
+  forceModelSelection = false;
 
   try {
     const aliases = modelAliases();
@@ -652,6 +677,7 @@ async function selectPreferredModel() {
       failedApplyKey = "";
       attemptedApplyKey = "";
       const thinkingEnabled = await ensureThinkingEnabled(trigger, false);
+      appliedModelKey = modelKey;
       await submitPendingSearchIfNeeded();
       await setStatus(`\u5df2\u662f\u5f53\u524d\u6a21\u578b\uff1a${settings.preferredModel}${thinkingEnabled ? "\uff0c\u5df2\u5c1d\u8bd5\u5f00\u542f\u601d\u8003" : ""}`);
       return;
@@ -672,7 +698,9 @@ async function selectPreferredModel() {
     log("Selecting preferred model.", option);
     clickElement(option);
     failedApplyKey = "";
+    attemptedApplyKey = "";
     const thinkingEnabled = await ensureThinkingEnabled(trigger, true);
+    appliedModelKey = modelKey;
     await submitPendingSearchIfNeeded();
     await setStatus(`\u5df2\u5207\u6362\u5230\uff1a${settings.preferredModel}${thinkingEnabled ? "\uff0c\u5df2\u5c1d\u8bd5\u5f00\u542f\u601d\u8003" : ""}`);
   } finally {
@@ -778,5 +806,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   failedApplyKey = "";
   attemptedApplyKey = "";
   submittedSearchApplyKey = "";
+  appliedModelKey = "";
+  forceModelSelection = true;
   scheduleSelection(200);
 });
