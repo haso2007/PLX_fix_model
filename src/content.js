@@ -52,7 +52,16 @@ let pendingSearchInProgress = false;
 let submittedSearchPath = "";
 let submittedSearchApplyKey = "";
 
+function isSettingsRoute() {
+  const hash = (location.hash || "").toLocaleLowerCase();
+  return hash === "#settings" || hash.startsWith("#settings/") || location.pathname.startsWith("/settings");
+}
+
 function captureDirectSearch() {
+  if (isSettingsRoute()) {
+    return;
+  }
+
   const url = new URL(location.href);
   const query = url.searchParams.get("q");
   if (!query || !location.pathname.startsWith("/search")) {
@@ -598,6 +607,9 @@ async function waitForPreferredOption() {
 }
 
 async function selectPreferredModel() {
+  if (isSettingsRoute()) {
+    return;
+  }
   if (selecting) {
     return;
   }
@@ -609,20 +621,14 @@ async function selectPreferredModel() {
 
   if (pendingSearchSubmitted && location.pathname.startsWith("/search/") && location.pathname !== submittedSearchPath) {
     submittedSearchPath = location.pathname;
+    submittedSearchApplyKey = applyKey;
     pendingSearchSubmitted = false;
+    return;
   }
 
-  const rememberedAliases = modelAliases();
   if (submittedSearchApplyKey === applyKey) {
-    const rememberedTrigger = findModelTrigger();
-    if (rememberedTrigger && elementContainsAny(rememberedTrigger, rememberedAliases)) {
-      return;
-    }
-    submittedSearchApplyKey = "";
+    return;
   }
-
-  const shouldRememberSubmittedSearchModel = location.pathname.startsWith("/search/")
-    && location.pathname === submittedSearchPath;
 
   const now = Date.now();
   if (now - lastAttemptAt < SETTLE_DELAY_MS) {
@@ -632,7 +638,7 @@ async function selectPreferredModel() {
   selecting = true;
 
   try {
-    const aliases = rememberedAliases;
+    const aliases = modelAliases();
     const trigger = findModelTrigger();
     if (!trigger) {
       log("Model trigger not found.");
@@ -643,9 +649,6 @@ async function selectPreferredModel() {
 
     if (elementContainsAny(trigger, aliases)) {
       log("Trigger already shows preferred model.");
-      if (shouldRememberSubmittedSearchModel) {
-        submittedSearchApplyKey = applyKey;
-      }
       failedApplyKey = "";
       attemptedApplyKey = "";
       const thinkingEnabled = await ensureThinkingEnabled(trigger, false);
@@ -681,6 +684,9 @@ async function selectPreferredModel() {
 
 function scheduleSelection(delay = SETTLE_DELAY_MS) {
   clearTimeout(selectTimer);
+  if (isSettingsRoute()) {
+    return;
+  }
   selectTimer = setTimeout(selectPreferredModel, delay);
 }
 
@@ -703,6 +709,10 @@ function watchPage() {
       thinkingAttemptedKey = "";
       failedApplyKey = "";
       attemptedApplyKey = "";
+      if (isSettingsRoute()) {
+        clearTimeout(selectTimer);
+        return;
+      }
       if (!location.pathname.startsWith("/search/")) {
         pendingSearchSubmitted = false;
         pendingSearchInProgress = false;
@@ -719,6 +729,15 @@ function watchPage() {
   observer.observe(document.documentElement, {
     childList: true,
     subtree: true
+  });
+
+  window.addEventListener("hashchange", () => {
+    lastUrl = location.href;
+    if (isSettingsRoute()) {
+      clearTimeout(selectTimer);
+      return;
+    }
+    scheduleSelection(300);
   });
 
   window.addEventListener("focus", () => scheduleSelection(300));
