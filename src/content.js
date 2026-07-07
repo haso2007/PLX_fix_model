@@ -50,7 +50,7 @@ let attemptedApplyKey = "";
 let pendingSearchSubmitted = false;
 let pendingSearchInProgress = false;
 let submittedSearchPath = "";
-let suppressModelSelectionUntil = 0;
+let submittedSearchApplyKey = "";
 
 function captureDirectSearch() {
   const url = new URL(location.href);
@@ -445,7 +445,6 @@ async function submitPendingSearchIfNeeded() {
 
   pendingSearchSubmitted = true;
   submittedSearchPath = location.pathname;
-  suppressModelSelectionUntil = Date.now() + 30000;
   sessionStorage.removeItem(PENDING_SEARCH_KEY);
 
   pastePromptValue(input, pending.query);
@@ -610,12 +609,20 @@ async function selectPreferredModel() {
 
   if (pendingSearchSubmitted && location.pathname.startsWith("/search/") && location.pathname !== submittedSearchPath) {
     submittedSearchPath = location.pathname;
-    return;
+    pendingSearchSubmitted = false;
   }
 
-  if (location.pathname.startsWith("/search/") && Date.now() < suppressModelSelectionUntil) {
-    return;
+  const rememberedAliases = modelAliases();
+  if (submittedSearchApplyKey === applyKey) {
+    const rememberedTrigger = findModelTrigger();
+    if (rememberedTrigger && elementContainsAny(rememberedTrigger, rememberedAliases)) {
+      return;
+    }
+    submittedSearchApplyKey = "";
   }
+
+  const shouldRememberSubmittedSearchModel = location.pathname.startsWith("/search/")
+    && location.pathname === submittedSearchPath;
 
   const now = Date.now();
   if (now - lastAttemptAt < SETTLE_DELAY_MS) {
@@ -625,7 +632,7 @@ async function selectPreferredModel() {
   selecting = true;
 
   try {
-    const aliases = modelAliases();
+    const aliases = rememberedAliases;
     const trigger = findModelTrigger();
     if (!trigger) {
       log("Model trigger not found.");
@@ -636,6 +643,9 @@ async function selectPreferredModel() {
 
     if (elementContainsAny(trigger, aliases)) {
       log("Trigger already shows preferred model.");
+      if (shouldRememberSubmittedSearchModel) {
+        submittedSearchApplyKey = applyKey;
+      }
       failedApplyKey = "";
       attemptedApplyKey = "";
       const thinkingEnabled = await ensureThinkingEnabled(trigger, false);
@@ -697,7 +707,7 @@ function watchPage() {
         pendingSearchSubmitted = false;
         pendingSearchInProgress = false;
         submittedSearchPath = "";
-        suppressModelSelectionUntil = 0;
+        submittedSearchApplyKey = "";
       }
       scheduleSelection(500);
       return;
@@ -748,5 +758,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   thinkingAttemptedKey = "";
   failedApplyKey = "";
   attemptedApplyKey = "";
+  submittedSearchApplyKey = "";
   scheduleSelection(200);
 });
